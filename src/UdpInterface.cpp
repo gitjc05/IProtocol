@@ -1,5 +1,12 @@
 #include "UdpInterface.h"
+#ifdef _WIN32
 #include <Windows.h>
+#else
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <cerrno>
+#include <cstring>
+#endif
 #include <format>
 
 UdpInterface::UdpInterface() : io(), UdpSock(io)
@@ -45,13 +52,16 @@ bool UdpInterface::Connect(std::string address, int port, bool server)
 		return false;
 	}
 
-	UdpEndpoint = *endpoints.begin();
 
-	UdpSock.connect(UdpEndpoint, ec);
-	if (ec)
+	if (!server)
 	{
-		std::cerr << std::format("UDP connect failed: {}\n", ec.message());
-		return false;
+		UdpEndpoint = *endpoints.begin();
+		UdpSock.connect(UdpEndpoint, ec);
+		if (ec)
+		{
+			std::cerr << std::format("UDP connect failed: {}\n", ec.message());
+			return false;
+		}
 	}
 
 	return true;
@@ -86,6 +96,7 @@ bool UdpInterface::Write(const char* data, int length)
 
 bool UdpInterface::SetTimeout(size_t timeoutMs)
 {
+#ifdef _WIN32
 	DWORD timeout = static_cast<DWORD>(timeoutMs);
 
 	int result = setsockopt(
@@ -96,6 +107,30 @@ bool UdpInterface::SetTimeout(size_t timeoutMs)
 		sizeof(timeout)
 	);
 	return result == 0;
+#else
+	timeval timeout {};
+	timeout.tv_sec = static_cast<time_t>(timeoutMs / 1000);
+	timeout.tv_usec = static_cast<suseconds_t>((timeoutMs % 1000) * 1000);
+
+	int result = setsockopt(
+		UdpSock.native_handle(),
+		SOL_SOCKET,
+		SO_RCVTIMEO,
+		&timeout,
+		sizeof(timeout)
+	);
+
+	if (result != 0)
+	{
+		std::cerr << std::format(
+			"Failed to set UDP receive timeout: {}\n",
+			std::strerror(errno)
+		);
+		return false;
+	}
+
+	return true;
+#endif
 }
 
 void UdpInterface::Disconnect()

@@ -1,5 +1,12 @@
 #include "ComInterface.h"
+#ifdef _WIN32
 #include <Windows.h>
+#else
+#include <termios.h>
+#include <unistd.h>
+#include <cerrno>
+#include <cstring>
+#endif
 #include <format>
 
 ComInterface::ComInterface() : io(), SerialPort(io)
@@ -60,6 +67,7 @@ bool ComInterface::Write(const char* data, int length)
 
 bool ComInterface::SetTimeout(size_t timeoutMs)
 {
+#ifdef _WIN32
 	if (timeoutMs == 0)
 	{
 		COMMTIMEOUTS timeouts {};
@@ -77,6 +85,50 @@ bool ComInterface::SetTimeout(size_t timeoutMs)
 	timeouts.WriteTotalTimeoutConstant = 0;
 
 	return SetCommTimeouts(handle, &timeouts) != 0;
+#else
+	int fd = SerialPort.native_handle();
+
+	termios tty {};
+	if (tcgetattr(fd, &tty) != 0)
+	{
+		std::cerr << std::format(
+			"Failed to get serial timeout settings: {}\n",
+			std::strerror(errno)
+		);
+		return false;
+	}
+
+	if (timeoutMs == 0)
+	{
+		tty.c_cc[VMIN] = 1;
+		tty.c_cc[VTIME] = 0;
+	} else
+	{
+		size_t deciseconds = (timeoutMs + 99) / 100;
+
+		if (deciseconds == 0)
+		{
+			deciseconds = 1;
+		} else if (deciseconds > 255)
+		{
+			deciseconds = 255;
+		}
+
+		tty.c_cc[VMIN] = 0;
+		tty.c_cc[VTIME] = static_cast<cc_t>(deciseconds);
+	}
+
+	if (tcsetattr(fd, TCSANOW, &tty) != 0)
+	{
+		std::cerr << std::format(
+			"Failed to set serial timeout settings: {}\n",
+			std::strerror(errno)
+		);
+		return false;
+	}
+
+	return true;
+#endif
 }
 
 void ComInterface::Disconnect()

@@ -20,6 +20,25 @@
         "CMAKE_CXX_STANDARD": "20",
         "VCPKG_TARGET_TRIPLET": "x64-windows"
       }
+    },
+    {
+      "name": "linux-debug",
+      "displayName": "Linux Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_STANDARD": "20"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": "Linux",
+          "intelliSenseMode": "linux-gcc-x64"
+        },
+        "microsoft.com/VisualStudioRemoteSettings/CMake/1.0": {
+          "copyBuildOutput": true
+        }
+      }
     }
   ],
   "buildPresets": [
@@ -32,6 +51,10 @@
       "name": "build-release",
       "configurePreset": "windows-release",
       "configuration": "Release"
+    },
+    {
+      "name": "build-linux-debug",
+      "configurePreset": "linux-debug"
     }
   ]
 }
